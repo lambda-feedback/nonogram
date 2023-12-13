@@ -55,7 +55,7 @@ def evaluation_function(response: Any, answer: Any, params: Params) -> Result:
         return {"is_correct": False, "feedback": "Response and answer shapes do not match."}
 
     # Element-wise comparison for string match
-    is_correct = np.all(res_str == ans_str)
+    is_correct = bool(np.all(res_str == ans_str))
 
     if not is_correct:
         found = False
