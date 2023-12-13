@@ -47,7 +47,7 @@ def evaluation_function(response: Any, answer: Any, params: Params) -> Result:
         res_str = np.array(response, dtype=str)
         ans_str = np.array(answer, dtype=str)
     except Exception as e:
-        raise EvaluationException(
+        raise Exception(
             "Failed to convert to string arrays", detail=repr(e))
 
     # Check if the arrays have the same shape
