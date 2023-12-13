@@ -31,6 +31,24 @@ class TestEvaluationFunction(unittest.TestCase):
 
         self.assertEqual(result.get("is_correct"), True)
 
+    def test_I_correct(self):
+        response = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        answer = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+        response = evaluation_function(response, answer, {})
+
+        self.assertEqual(response.get("is_correct"), True)
+
+    def test_I_incorrect_row(self):
+        response = [[0, 0, 1], [0, 1, 0], [0, 0, 1]]
+        answer = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+        response = evaluation_function(response, answer, {})
+
+        self.assertEqual(response.get("is_correct"), False)
+        self.assertEqual(
+            response["feedback"], "Row 1 does not match: Answer: ['1' '0' '0'], Response: ['0' '0' '1']")
+
 
 if __name__ == "__main__":
     unittest.main()
