@@ -1,97 +1,100 @@
-# Evaluation Function Template Repository
+# Nonogram Evaluation Function
 
-This template repository contains the boilerplate code needed in order to create an AWS Lambda function that can be written by any tutor to grade a response area in any way they like.
-
-This version is specifically for python, however the ultimate goal is to make similar boilerplate repositories in any language, allowing tutors the freedom to code in what they feel most comfortable with.
+An AWS Lambda evaluation function for grading nonogram (picross) puzzle responses. Given a student's completed nonogram grid and the correct solution, it compares them element-by-element and returns pass/fail feedback identifying the first mismatched row or column.
 
 ## Table of Contents
-- [Evaluation Function Template Repository](#evaluation-function-template-repository)
-  - [Table of Contents](#table-of-contents)
-  - [Repository Structure](#repository-structure)
-  - [Usage](#usage)
-    - [Getting Started](#getting-started)
-  - [How it works](#how-it-works)
-    - [Docker & Amazon Web Services (AWS)](#docker--amazon-web-services-aws)
-    - [Middleware Functions](#middleware-functions)
-    - [GitHub Actions](#github-actions)
-  - [Pre-requisites](#pre-requisites)
-  - [Contact](#contact)
+- [Repository Structure](#repository-structure)
+- [How it works](#how-it-works)
+  - [Evaluation Logic](#evaluation-logic)
+  - [Docker & Amazon Web Services (AWS)](#docker--amazon-web-services-aws)
+  - [GitHub Actions](#github-actions)
+- [Development](#development)
+- [Contact](#contact)
 
 ## Repository Structure
 
-```bash
+```
 app/
-    __init__.py
-    evaluation.py # Script containing the main evaluation_function
-    preview.py # Script containing the preview_function
-    docs.md # Documentation page for this function (required)
-    evaluation_tests.py # Unittests for the main evaluation_function
-    preview_tests.py # Unittests for the preview_function
-    requirements.txt # list of packages needed for algorithm.py
-    Dockerfile # for building whole image to deploy to AWS
+    evaluation.py        # Main evaluation function
+    preview.py           # Preview function
+    evaluation_tests.py  # Unit tests for evaluation_function
+    preview_tests.py     # Unit tests for preview_function
+    requirements.txt     # Python dependencies (numpy)
+    Dockerfile           # Container image for AWS Lambda
+    docs/
+        user.md          # Teacher-facing documentation
+        dev.md           # Developer documentation
 
 .github/
     workflows/
-        test-and-deploy.yml # Testing and deployment pipeline
+        test-and-deploy.yml  # CI/CD pipeline
 
-config.json # Specify the name of the evaluation function in this file
+config.json   # Evaluation function name ("nonogram")
 .gitignore
 ```
 
-## Usage
-
-### Getting Started
-
-1. Clone this repository
-2. Change the name of the evaluation function in `config.json`
-3. The name must be unique. To view existing grading functions, go to:
-
-   - [Staging API Gateway Integrations](https://eu-west-2.console.aws.amazon.com/apigateway/main/develop/integrations/attach?api=c1o0u8se7b&region=eu-west-2&routes=0xsoy4q)
-   - [Production API Gateway Integrations](https://eu-west-2.console.aws.amazon.com/apigateway/main/develop/integrations/attach?api=cttolq2oph&integration=qpbgva8&region=eu-west-2&routes=0xsoy4q)
-
-4. Merge commits into the default branch
-   - This will trigger the `test-and-deploy.yml` workflow, which will build the docker image, push it to a shared ECR repository, then call the backend `grading-function/ensure` route to build the necessary infrastructure to make the function available from the client app.
-
-5. You are now ready to start developing your function:
-   
-   - Edit the `app/evaluation.py` file, which ultimately gets called when the function is given the `eval` command
-   - Edit the `app/preview.py` file, which is called when the function is passed the `preview` command.
-   - Edit the `app/evaluation_tests.py` and `app/preview_tests.py` files to add tests which get run:
-       - Every time you commit to this repo, before the image is built and deployed 
-       - Whenever the `healthcheck` command is supplied to the deployed function
-   - Edit the `app/docs.md` file to reflect your changes. This file is baked into the function's image, and is made available using the `docs` command. This feature is used to display this function's documentation on our [Documentation](https://lambda-feedback.github.io/Documentation/) website once it's been hooked up!
-
----
-
 ## How it works
 
-The function is built on top of a custom base layer, [BaseEvaluationFunctionLayer](https://github.com/lambda-feedback/BaseEvalutionFunctionLayer), which tools, tests and schema checking relevant to all evaluation functions.
+### Evaluation Logic
+
+The function receives a `response` and `answer`, both 2D arrays representing nonogram grids (e.g. `[[1, 0, 0], [0, 1, 0], [0, 0, 1]]`).
+
+1. **Empty check** — validates that neither the answer nor response contain empty or undefined cells.
+2. **Shape check** — ensures the response grid has the same dimensions as the answer.
+3. **Element-wise comparison** — uses NumPy to compare all cells. If incorrect, it scans rows first, then columns, and returns feedback identifying the first mismatch.
+
+Example response:
+
+```json
+{
+  "is_correct": false,
+  "feedback": "Row 1 does not match: Answer: ['1' '0' '0'], Response: ['0' '0' '1']"
+}
+```
 
 ### Docker & Amazon Web Services (AWS)
 
-The grading scripts are hosted AWS Lambda, using containers to run a docker image of the app. Docker is a popular tool in software development that allows programs to be hosted on any machine by bundling all its requirements and dependencies into a single file called an **image**.
+The function runs on AWS Lambda using a Docker container image. Docker bundles the app and its dependencies (numpy) into a single image, which is pushed to a shared ECR repository on each deployment. For more on Docker, see this [introduction to containerisation](https://www.freecodecamp.org/news/a-beginner-friendly-introduction-to-containers-vms-and-docker-79a9e3e119b/).
 
-Images are run within **containers** on AWS, which give us a lot of flexibility over what programming language and packages/libraries can be used. For more information on Docker, read this [introduction to containerisation](https://www.freecodecamp.org/news/a-beginner-friendly-introduction-to-containers-vms-and-docker-79a9e3e119b/). To learn more about AWS Lambda, click [here](https://geekflare.com/aws-lambda-for-beginners/).
-
-### Middleware Functions
-In order to run the algorithm and schema on AWS Lambda, some middleware functions have been provided to handle, validate and return the data so all you need to worry about is the evaluation script and testing.
-
-The code needed to build the image using all the middleware functions are available in the [BaseEvaluationFunctionLayer](https://github.com/lambda-feedback/BaseEvalutionFunctionLayer) repository.
+The base infrastructure and middleware that handles request routing, schema validation, and command dispatch is provided by [BaseEvaluationFunctionLayer](https://github.com/lambda-feedback/BaseEvalutionFunctionLayer). This function only needs to implement `evaluation_function()` and `preview_function()`.
 
 ### GitHub Actions
-Whenever a commit is made to the GitHub repository, the new code will go through a pipeline, where it will be tested for syntax errors and code coverage. The pipeline used is called **GitHub Actions** and the scripts for these can be found in `.github/workflows/`.
 
-On top of that, when starting a new evaluation function, you will have to complete a set of unit test scripts, which not only make sure your code is reliable, but also helps you to build a _specification_ for how the code should function before you start programming.
+Merging to the default branch triggers `.github/workflows/test-and-deploy.yml`, which:
 
-Once the code passes all these tests, it will then be uploaded to AWS and will be deployed and ready to go in only a few minutes.
+1. Runs the unit tests in `evaluation_tests.py` and `preview_tests.py`.
+2. Builds and pushes the Docker image to ECR.
+3. Calls the backend `grading-function/ensure` route to deploy the updated function.
 
-## Pre-requisites
-Although all programming can be done through the GitHub interface, it is recommended you do this locally on your machine. To do this, you must have installed:
+Tests also run on the deployed function whenever it receives a `healthcheck` command.
 
-- Python 3.8 or higher.
+## Development
 
-- GitHub Desktop or the `git` CLI.
+**Prerequisites:** Python 3.8+, `git`, a code editor.
 
-- A code editor such as Atom, VS Code, or Sublime.
+Install dependencies locally:
 
-Copy this template over by clicking **Use this template** button found in the repository on GitHub. Save it to the `lambda-feedback` Organisation.
+```bash
+pip install -r app/requirements.txt
+```
+
+Run tests:
+
+```bash
+python -m pytest app/
+```
+
+Key files to edit:
+
+| File | Purpose |
+|---|---|
+| `app/evaluation.py` | Grading logic, called on `eval` command |
+| `app/preview.py` | Preview rendering, called on `preview` command |
+| `app/evaluation_tests.py` | Unit tests for evaluation |
+| `app/preview_tests.py` | Unit tests for preview |
+| `app/docs/user.md` | Teacher-facing docs (served via `docs` command) |
+| `app/docs/dev.md` | Developer docs |
+
+## Contact
+
+This function is part of the [lambda-feedback](https://github.com/lambda-feedback) project.
